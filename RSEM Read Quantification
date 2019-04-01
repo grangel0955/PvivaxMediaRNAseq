@@ -1,0 +1,31 @@
+#This was run on the Odyssey Cluster of the  Harvard University FAS Research Computing group. All modules correspond to this.
+source new-modules.sh
+module load R/3.1.0-fasrc01
+module load bowtie2/2.2.2-fasrc01
+module load bowtie/1.1.1-fasrc01
+module load rsem/1.2.29-fasrc02
+
+#Fill this in with appropriate file paths on your machine
+path_to_ref_genomes=
+path_to_STAR_bam= #where the .bam files created by STAR are kept
+path_to_perm_output=
+filelists=
+filelist= #A list of all the .bam files created by STAR
+
+while read list
+        do
+        	rm -r $path_to_scr_output/tmp # Remove previous STAR temp directory
+            bamfile=$(echo $list)
+            outprefix=$(echo $bamfile | sed -e "s/\(^[A-Z][0-9][0-9]-\).\+$/e1_p1_\1/") # Make nice names for the output files
+                echo $outprefix
+                echo $path_to_STAR_bam/$bamfile
+                
+                rsem-calculate-expression -p 16 \
+				--paired-end \
+				--bam \
+				--output-genome-bam \
+				$path_to_STAR_bam/$bamfile \
+				$path_to_ref_genomes \
+				$path_to_perm_output/$outprefix \
+
+        done < $filelists/$filelist
