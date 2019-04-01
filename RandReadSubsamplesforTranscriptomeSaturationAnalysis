@@ -1,0 +1,24 @@
+#This randomly selects 75% of all reads for all raw sample files
+#Modify this code to Randomly select a 10%, 25%, 50%, and 90% of all reads for all files as well and then feed into RSEM to calculate TPM
+
+module load seqtk/1.2-fasrc01
+
+path_to_p1_fq= #Path to plate 1 data
+path_to_p2_fq= #Path to plate 2 data
+path_to_output= #desired output path
+
+filelists=
+filelist= #list of samples on each plate
+
+while read list
+        do
+            read1=$(echo $list | cut -d ' ' -f1) # need $() to enclose command # cut-d' ' -f1 says the fields are separated by spaces and outputs the first field on each line
+            read2=$(echo $list | cut -d ' ' -f2) # cut-d' ' -f2 says the fields are separated by spaces and outputs the second field on each line
+                echo $path_to_p2_fq/$read1
+                echo $path_to_p2_fq/$read2
+
+             seqtk sample -s750 $path_to_p2_fq/$read1 .75 > $path_to_output/$read1
+             seqtk sample -s750 $path_to_p2_fq/$read2 .75 > $path_to_output/$read2
+
+        done < $filelists/$filelist
+        
