@@ -1,0 +1,51 @@
+#This was all completed in RStudio version 1.1.463
+#load in appropriate libraries
+library("RColorBrewer")
+library("ggfortify")
+library("reshape2")
+
+#Load in TPM data for all samples
+projectTPMperGene <- read.csv("#filepath to .csv with all TPM per gene")
+
+#Transform TPMs to log2(TPM)
+log2projectTPMperGene <- log2(projectTPMperGene+1)
+
+#Make principle components object
+project.pca <- prcomp(t(log2projectTPMperGene))
+
+project.kmeans <- kmeans(log2projectTPMperGene,10)
+
+Samples <- read.csv("#filepath to RNAseqSamples2.csv")
+
+### Make Scree plot to show how much variation is explained by each PC
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+
+par(mar=c(5,5,5,0))
+barplot(project.pca.proportionvariances[1:10],
+        names.arg = 1:10,
+        width = .5,
+        cex.main=1.5,
+        cex.axis=1,
+        cex.names=1,
+        cex.lab=1,
+        xlab="Principal component (PC), 1-10",
+        ylab="Proportion of variation (%)", 
+        main="Scree Plot", 
+        ylim=c(0,50),
+        xlim=c(0.2,6))
+        
+        
+#Make PCA Plot of PC1 v PC2 as in Figure 2
+p <- autoplot(project.pca,
+         data=Samples,
+         label=F,
+         size = "Isolate",
+         frame=T,
+         shape="Media",
+         colour = "Hour",
+         main = "Principal Components Analysis")+
+  theme_bw(base_size = 14)+
+  theme(axis.text.x = element_text(size=14),
+          axis.text.y = element_text(size=14),
+          plot.title=element_text(hjust=0.5, size=20))
+p
