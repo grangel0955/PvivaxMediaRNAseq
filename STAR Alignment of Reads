@@ -1,3 +1,5 @@
+#This was run on the Odyssey Cluster of the  Harvard University FAS Research Computing group. All modules correspond to this.
+
 #Create STAR genome file
 module load gcc/7.1.0-fasrc01 STAR/2.5.0c-fasrc02
 
