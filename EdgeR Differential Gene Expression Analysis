@@ -1,0 +1,132 @@
+#Load packages
+library(limma)
+library(edgeR)
+library(ggplot2)
+library(gplots)
+library(graphics)
+library(grDevices)
+library(methods)
+library(RColorBrewer)
+library(stats)
+library(utils)
+
+#Load data into R
+allReadsPerGeneP12_out_tab <- read.csv("Results/STAR-genecounts/allReadsPerGeneP12.out.tab.csv",row.names="gene_id")
+
+#create a matrix to assign experimental groups to each column
+group <- factor(c("JBC4M","JBC4D","MRMS4D","TCF4D","JBC20A","MRMS20M","TCF20D","MRMS44lI","TCF44lM","TCF72lI","JBC4M","JBC4D","MRMS4M","TCF4D","JBC20A","MRMS20M","TCF20D","MRMS44lI","TCF44lD","TCF72lM","JBC4M","JBC4D","MRMS4M","TCF4A","JBC20D","MRMS20I","TCF20A","MRMS44lI","TCF44lD","TCF72lM","JBC4I","JBC4A","MRMS4I","TCF4A","JBC20D","MRMS20I","TCF20A","TCF44lI","TCF44lD","TCF72lM","JBC4I","MRMS4A","TCF4I","JBC20M","MRMS20A","TCF20I","MRMS44lA","TCF44lI","TCF44lA","TCF72lD","JBC4I","MRMS4A","TCF4I","JBC20M","MRMS20A","TCF20I","MRMS44lA","TCF44lI","TCF44lA","TCF72lD","JBC4A","MRMS4A","TCF4M","JBC20I","MRMS20D","TCF20M","MRMS44lM","TCF44lM","TCF44lA","TCF72lI","JBC4A","MRMS4D","TCF4M","JBC20I","MRMS20D","TCF20M","MRMS44lM","TCF44lM","TCF72lI","JBC36M","MRMS36A","TCF36I","MRMS44hA","TCF44hI","TCF44hA","TCF72mM","TCF72mA","JBC36M","MRMS36A","TCF36I","MRMS44hA","TCF44hI","TCF72mI","TCF72hM","TCF72hA","JBC36I","MRMS36D","TCF36M","MRMS44hM","TCF44hM","TCF72mI","TCF72hM","TCF72hA","JBC36I","MRMS36D","TCF36M","MRMS44hM","TCF44hM","TCF72hI","TCF72hM","JBC36A","MRMS36M","TCF36D","MRMS44hI","TCF44hM","TCF72hI","TCF72mD","JBC36A","MRMS36M","TCF36D","MRMS44hI","TCF44hD","TCF72hI","TCF72mD","JBC36D","MRMS36I","TCF36A","MRMS44hI","TCF44hA","TCF72mM","TCF72mD","JBC36D","MRMS36I","TCF36A","TCF44hI","TCF44hA","TCF72mM","TCF72mA"))
+y <- DGEList(counts=allReadsPerGeneP12_out_tab,group=group)
+
+#Calculate normalization factors that scale the library sizes to minimize logfold changes between samples for most genes
+#May need to drop Ribosomal RNA even with this
+y <- calcNormFactors(y)
+
+#Makes design matrix without intercept column and with column names
+design <- model.matrix(~0+group, data=y$samples)
+colnames(design) <- levels(y$samples$group)
+
+#This estimates common dispersion, trended dispersion depending on tag abundance and separate dispersions for individual tags. Should use tagwise for multi-factor experiments
+y <- estimateDisp(y,design)
+
+#Filter out lowly expressed genes
+keep <- rowSums(cpm(y)>2) >= 2
+y <- y[keep, , keep.lib.sizes=FALSE]
+
+#fits a the negative binomial GLM for each tag and makes object of class DGEGLM to pass to tests
+fit <- glmQLFit(y, design)
+
+#Generate contrast lists
+my.contrasts <- makeContrasts(JBC4IvJBC4M = JBC4I - JBC4M,
+                              JBC4IvJBC4A = JBC4I - JBC4A,
+                              JBC4IvJBC4D = JBC4I - JBC4D,
+                              JBC20IvJBC20M = JBC20I - JBC20M,
+                              JBC20IvJBC20A = JBC20I - JBC20A,
+                              JBC20IvJBC20D = JBC20I - JBC20D,
+                              JBC36IvJBC36M = JBC36I - JBC36M,
+                              JBC36IvJBC36A = JBC36I - JBC36A,
+                              JBC36IvJBC36D = JBC36I - JBC36D,
+                              MRMS4IvMRMS4M = MRMS4I - MRMS4M,
+                              MRMS4IvMRMS4A = MRMS4I - MRMS4A,
+                              MRMS4IvMRMS4D = MRMS4I - MRMS4D,
+                              MRMS20IvMRMS20M = MRMS20I - MRMS20M,
+                              MRMS20IvMRMS20A = MRMS20I - MRMS20A,
+                              MRMS20IvMRMS20D = MRMS20I - MRMS20D,
+                              MRMS36IvMRMS36M = MRMS36I - MRMS36M,
+                              MRMS36IvMRMS36A = MRMS36I - MRMS36A,
+                              MRMS36IvMRMS36D = MRMS36I - MRMS36D,
+                              MRMS44lIvMRMS44lM = MRMS44lI - MRMS44lM,
+                              MRMS44lIvMRMS44lA = MRMS44lI - MRMS44lA,
+                              MRMS44hIvMRMS44hM = MRMS44hI - MRMS44hM,
+                              MRMS44hIvMRMS44hA = MRMS44hI - MRMS44hA,
+                              TCF4IvTCF4M = TCF4I - TCF4M,
+                              TCF4IvTCF4A = TCF4I - TCF4A,
+                              TCF4IvTCF4D = TCF4I - TCF4D,
+                              TCF20IvTCF20M = TCF20I - TCF20M,
+                              TCF20IvTCF20A = TCF20I - TCF20A,
+                              TCF20IvTCF20D = TCF20I - TCF20D,
+                              TCF36IvTCF36M = TCF36I - TCF36M,
+                              TCF36IvTCF36A = TCF36I - TCF36A,
+                              TCF36IvTCF36D = TCF36I - TCF36D,
+                              TCF44lIvTCF44lM = TCF44lI - TCF44lM,
+                              TCF44lIvTCF44lA = TCF44lI - TCF44lA,
+                              TCF44lIvTCF44lD = TCF44lI - TCF44lD,
+                              TCF44hIvTCF44hM = TCF44hI - TCF44hM,
+                              TCF44hIvTCF44hA = TCF44hI - TCF44hA,
+                              TCF44hIvTCF44hD = TCF44hI - TCF44hD,
+                              TCF72lIvTCF72lM = TCF72lI - TCF72lM,
+                              TCF72lIvTCF72lD = TCF72lI - TCF72lD,
+                              TCF72mIvTCF72mM = TCF72mI - TCF72mM,
+                              TCF72mIvTCF72mA = TCF72mI - TCF72mA,
+                              TCF72mIvTCF72mD = TCF72mI - TCF72mD,
+                              TCF72hIvTCF72hM = TCF72hI - TCF72hM,
+                              TCF72hIvTCF72hA = TCF72hI - TCF72hA,
+                              TCF72mIvTCF72hI = TCF72mI - TCF72hI,
+                              levels=design)
+                              
+                              
+#Gerate Genewise Negative Binomial Generalized Linear Models with Quasi-likelihood Tests for all contrasts
+qlf.JBC4IvJBC4A <- glmQLFTest(fit, contrast=my.contrasts[,"JBC4IvJBC4A"])
+qlf.JBC4IvJBC4D <- glmQLFTest(fit, contrast=my.contrasts[,"JBC4IvJBC4D"])
+qlf.JBC20IvJBC20M <- glmQLFTest(fit, contrast=my.contrasts[,"JBC20IvJBC20M"])
+qlf.JBC20IvJBC20A <- glmQLFTest(fit, contrast=my.contrasts[,"JBC20IvJBC20A"])
+qlf.JBC20IvJBC20D <- glmQLFTest(fit, contrast=my.contrasts[,"JBC20IvJBC20D"])
+qlf.JBC36IvJBC36M <- glmQLFTest(fit, contrast=my.contrasts[,"JBC36IvJBC36M"])
+qlf.JBC36IvJBC36A <- glmQLFTest(fit, contrast=my.contrasts[,"JBC36IvJBC36A"])
+qlf.JBC36IvJBC36D <- glmQLFTest(fit, contrast=my.contrasts[,"JBC36IvJBC36D"])
+qlf.MRMS4IvMRMS4M <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS4IvMRMS4M"])
+qlf.MRMS4IvMRMS4A <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS4IvMRMS4A"])
+qlf.MRMS4IvMRMS4D <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS4IvMRMS4D"])
+qlf.MRMS20IvMRMS20M <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS20IvMRMS20M"])
+qlf.MRMS20IvMRMS20A <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS20IvMRMS20A"])
+qlf.MRMS20IvMRMS20D <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS20IvMRMS20D"])
+qlf.MRMS36IvMRMS36M <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS36IvMRMS36M"])
+qlf.MRMS36IvMRMS36A <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS36IvMRMS36A"])
+qlf.MRMS36IvMRMS36D <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS36IvMRMS36D"])
+qlf.MRMS44lIvMRMS44lM <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS44lIvMRMS44lM"])
+qlf.MRMS44lIvMRMS44lA <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS44lIvMRMS44lA"])
+qlf.MRMS44hIvMRMS44hM <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS44hIvMRMS44hM"])
+qlf.MRMS44hIvMRMS44hA <- glmQLFTest(fit, contrast=my.contrasts[,"MRMS44hIvMRMS44hA"])
+qlf.TCF4IvTCF4M <- glmQLFTest(fit, contrast=my.contrasts[,"TCF4IvTCF4M"])
+qlf.TCF4IvTCF4A <- glmQLFTest(fit, contrast=my.contrasts[,"TCF4IvTCF4A"])
+qlf.TCF4IvTCF4D <- glmQLFTest(fit, contrast=my.contrasts[,"TCF4IvTCF4D"])
+qlf.TCF20IvTCF20M <- glmQLFTest(fit, contrast=my.contrasts[,"TCF20IvTCF20M"])
+qlf.TCF20IvTCF20A <- glmQLFTest(fit, contrast=my.contrasts[,"TCF20IvTCF20A"])
+qlf.TCF20IvTCF20D <- glmQLFTest(fit, contrast=my.contrasts[,"TCF20IvTCF20D"])
+qlf.TCF36IvTCF36M <- glmQLFTest(fit, contrast=my.contrasts[,"TCF36IvTCF36M"])
+qlf.TCF36IvTCF36A <- glmQLFTest(fit, contrast=my.contrasts[,"TCF36IvTCF36A"])
+qlf.TCF36IvTCF36D <- glmQLFTest(fit, contrast=my.contrasts[,"TCF36IvTCF36D"])
+qlf.TCF44lIvTCF44lM <- glmQLFTest(fit, contrast=my.contrasts[,"TCF44lIvTCF44lM"])
+qlf.TCF44lIvTCF44lA <- glmQLFTest(fit, contrast=my.contrasts[,"TCF44lIvTCF44lA"])
+qlf.TCF44lIvTCF44lD <- glmQLFTest(fit, contrast=my.contrasts[,"TCF44lIvTCF44lD"])
+qlf.TCF44hIvTCF44hM <- glmQLFTest(fit, contrast=my.contrasts[,"TCF44hIvTCF44hM"])
+qlf.TCF44hIvTCF44hA <- glmQLFTest(fit, contrast=my.contrasts[,"TCF44hIvTCF44hA"])
+qlf.TCF44hIvTCF44hD <- glmQLFTest(fit, contrast=my.contrasts[,"TCF44hIvTCF44hD"])
+qlf.TCF72lIvTCF72lM <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72lIvTCF72lM"])
+qlf.TCF72lIvTCF72lD <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72lIvTCF72lD"])
+qlf.TCF72mIvTCF72mM <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72mIvTCF72mM"])
+qlf.TCF72mIvTCF72mA <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72mIvTCF72mA"])
+qlf.TCF72mIvTCF72mD <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72mIvTCF72mD"])
+qlf.TCF72hIvTCF72hM <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72hIvTCF72hM"])
+qlf.TCF72hIvTCF72hA <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72hIvTCF72hA"])
+qlf.TCF72mIvTCF72hI <- glmQLFTest(fit, contrast=my.contrasts[,"TCF72mIvTCF72hI"])                              
+
