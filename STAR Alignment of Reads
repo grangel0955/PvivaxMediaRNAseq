@@ -1,0 +1,57 @@
+#Create STAR genome file
+module load gcc/7.1.0-fasrc01 STAR/2.5.0c-fasrc02
+
+path_to_ref_genomes=#Set to PvP01 reference genome path
+path_to_gtf=#Set to gtf file path, ensuring codons are called "exons" and not "cds"
+
+    STAR \
+        --runThreadN 16 \
+        --runMode genomeGenerate \
+        --genomeDir #set to directory you want to create \
+        --genomeFastaFiles $path_to_ref_genomes \
+        --sjdbGTFfile $path_to_gtf \
+        --sjdbOverhang 24 \
+        
+
+
+# Aligns P.vivax RNASeq reads to the PvP01 genome AND produces read count files
+
+module load gcc/7.1.0-fasrc01 STAR/2.5.0c-fasrc02
+
+#set these as appropriate for your machine
+path_to_ref_genomes=#directory where you made the STAR reference genome
+path_to_gtf=#Set to gtf file path, ensuring codons are called "exons" and not "cds"
+path_to_p1_fq=#path to reads from plate 1
+path_to_p2_fq=#path to reads from plate 2
+path_to_scr_output=#where you will create the output files
+filelists=#your file list folder
+filelist=#file list with the names of each of the samples on the plate
+
+
+
+while read list
+        do
+        	rm -r $path_to_scr_output/tmp # Remove previous STAR temp directory
+            read1=$(echo $list | cut -d ' ' -f1) # need $() to enclose command # cut-d' ' -f1 says the fields are separated by spaces and outputs the first field on each line
+            read2=$(echo $list | cut -d ' ' -f2) # cut-d' ' -f2 says the fields are separated by spaces and outputs the second field on each line
+            outprefix=$(echo $read1 | sed -e "s/\(^[A-Z][0-9][0-9]-\).\+$/e1_p1_\1/") # Make nice names for the output files
+                echo $outprefix
+                echo $path_to_p1_fq/$read1
+                echo $path_to_p1_fq/$read2
+
+            STAR \
+                --runThreadN 16 \
+                --runMode alignReads \
+                --genomeDir $path_to_ref_genomes \
+                --readFilesIn $path_to_p1_fq/$read1 $path_to_p1_fq/$read2 \
+                --twopassMode Basic \
+                --alignIntronMax 500 \
+                --alignMatesGapMax 500 \
+                --sjdbGTFfile $path_to_gtf \
+                --sjdbScore 2 \
+                --quantMode TranscriptomeSAM GeneCounts\
+                --sjdbOverhang 24 \
+                --outFileNamePrefix $path_to_scr_output/$outprefix \
+                --outTmpDir $path_to_scr_output/tmp \
+
+        done < $filelists/$filelist
